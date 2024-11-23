@@ -90,12 +90,12 @@ csv_filename = "waze_data_sample.csv"
 
 with zipfile.ZipFile(zip_path, 'r') as z:
     with z.open(csv_filename) as f:
-        waze_df = pd.read_csv(f)
+        waze_sample_df = pd.read_csv(f)
 
 # Display the DataFrame
-print(waze_df.head())
+print(waze_sample_df.head())
 
-waze_df.dtypes
+waze_sample_df.dtypes
 
 ```
 
@@ -113,38 +113,274 @@ roadType: Nominal
 reliability: Ordinal
 magvar: Quantitative
 reportRating: Ordinal
+
 2. 
 
 ```{python}
 
+csv_filename = "waze_data.csv"
+
+with zipfile.ZipFile(zip_path, 'r') as z:
+    with z.open(csv_filename) as f:
+        waze_df = pd.read_csv(f)
+
+# Display the DataFrame
+print(waze_df.head())
+
+#assign an object that is the column names
+variable_name=waze_df.columns
+
+#assign an object the count of the number of each columns nas:
+na_count=waze_df.isna().sum()
+
+#assign another object the count of the number of non NAs
+non_na_count=waze_df.notna().sum()
+#define the df using our created objects:
+waze_df_nas=pd.DataFrame({"variable_name":variable_name,
+"na_count":na_count,"non_na_count":non_na_count})
+
+#convert to long so we can create a stacked bar chart:
+waze_df_nas = waze_df_nas.melt(id_vars="variable_name", 
+                                    value_vars=["na_count", "non_na_count"],
+                                    var_name="count_type", 
+                                    value_name="count")
+
+alt.Chart(waze_df_nas).mark_bar().encode(
+    alt.X("variable_name:N",title="Variable Name"),
+    alt.Y("count",title="Number of Observations"),
+    color=alt.Color("count_type",title="Type")
+).properties(title="Number of NAs v. Non NAs by Variable in Waze Data")
 ```
+
+nThumbsUp, street, subtype all contain NAs. nThumbsUp by far has the greatest number of NAs of all variables.
 
 3. 
 
 ```{python}
+print(waze_df["type"].unique())
+print(waze_df["subtype"].unique())
+
+print("Jam type subtypes:",waze_df[waze_df["type"]=="JAM"]["subtype"].unique())
+print("Accident type subtypes:",waze_df[waze_df["type"]=="ACCIDENT"]["subtype"].unique())
+print("Road closed type subtypes:",waze_df[waze_df["type"]=="ROAD_CLOSED"]["subtype"].unique())
+print("Hazard types subtypes:",waze_df[waze_df["type"]=="HAZARD"]["subtype"].unique())
+```
+
+All of the types have a subtype called NA.
+
+Hazard subtype probably has a further level of subtypes, because there's 9 under the bucket of "On Road", "On Shoulder" has 3, "Weather" has 4.
+-Jam (type)
+--Heavy Traffic(subtype)
+--Moderate Traffic(subtype)
+--Still Traffic(subtype)
+--Light Traffic(subtype)
+-Accident(type)
+--Major(subtype)
+--Minor(subtype)
+-Road Closed(type)
+--Event (subtype)
+--Construction(subtype)
+--Hazard(subtype)
+-Hazard (type)
+--On Road(subtype)
+---Car stopped(sub-subtype)
+---Construction(sub-subtype)
+---Emergency Vehicle(sub-subtype)
+---Ice(sub-subtype)
+---Object(sub-subtype)
+---Pot Hole(sub-subtype)
+---Traffic Light Fault(sub-subtype)
+---Lane Closed(sub-subtype)
+---Road Kill(sub-subtype)
+--On Shoulder (subtype)
+---Car Stopped(sub-subtype)
+---Animals(sub-subtype)
+---Missing Sign(sub-subtype)
+--Weather(subtype)
+---Flood(sub-subtype)
+---Fog(sub-subtype)
+---Heavy Snow(sub-subtype)
+---Hail(sub-subtype)
+
+```{python}
+#calculate the proportion of the df that has na for a subtype
+waze_df["subtype"].isna().size/waze_df.size
 
 ```
 
+I do think we ought to keep the NA subtypes because a substantial amount of the data has NA for subtype, and does not have any association with any particular type
+
 4. 
+
+```{python}
+original_type=waze_df["type"].unique
+original_subtype=waze_df["subtype"].unique
+
+updated_waze_df = waze_df[["type", "subtype"]].drop_duplicates().reset_index(drop=True)
+
+print(updated_waze_df)
+
+#now use a function on the existing columns to define
+#the new columns
+
+updated_waze_df["updated_type"]=updated_waze_df["type"]
+
+def extract_after_underscore(subtype):
+    if pd.isna(subtype):  # Check if the value is NA
+        return "Unclassified"
+    if isinstance(subtype, str):
+        # Check for specific keywords first
+        if "ON_ROAD" in subtype:
+            return "ON_ROAD"
+        elif "ON_SHOULDER" in subtype:
+            return "ON_SHOULDER"
+        elif "WEATHER" in subtype:
+            return "WEATHER"
+        # Otherwise, extract after the first underscore
+        if "_" in subtype:
+            return subtype.split("_", 1)[1]
+    return subtype  # Return as-is for other cases
+
+updated_waze_df["updated_subtype"] = updated_waze_df["subtype"].apply(extract_after_underscore)
+
+#now extract the subsubtype
+#conditions: extract everything beyond the subtype's ending
+#underscore.
+#if its on road or on shoulder, after the 3rd underscore
+#if its weather, 2nd underscore. return NA for other cases.
+def extractsubsubtype(subtype):
+    if isinstance(subtype, str):
+        parts = subtype.split("_")
+        if "WEATHER" in parts:
+            # For cases containing "WEATHER", return everything after the second underscore
+            if len(parts) > 2:
+                return "_".join(parts[2:])
+        elif len(parts) > 3:
+            # Otherwise, return everything after the third underscore
+            return "_".join(parts[3:])
+    return None  # Return None for other cases
+
+updated_waze_df["updated_subsubtype"] = [extractsubsubtype(subtype) for subtype in updated_waze_df["subtype"]]
+
+#now merge the two dfs:
+
+merged_waze_df=pd.merge(updated_waze_df,waze_df,how="outer",on=["type","subtype"])
+
+#count number of rows where type==accident and 
+#subtype==unclassified
+
+condition_df=merged_waze_df[(merged_waze_df["type"]=="ACCIDENT")& (merged_waze_df["updated_subtype"]=="Unclassified")]
+
+print("The number of rows with type accident and subtype unclassified is:",condition_df.size)
+
+```
+
+438462 rows with a type of accident and an unclassified subtype.
 
 1. 
 ```{python}
+import re
+#looked at the documentation and found what I think is most
+#important re method and syntax to incorporate into a function.
+#ChatGPT prompt: I want to split the longitude and latitude #using re.split(/s, txt), with each txt being the geoWKT output, #assigning text before the blank space to longitude, and the #text after to latitude
+# Function to extract longitude and latitude
+def split_long_lat(geoWKT):
+    # Use regex to extract only the numeric coordinates
+    match = re.search(r'\(([-\d.]+)\s+([-\d.]+)\)', geoWKT)
+    if match:
+        longitude, latitude = match.groups()
+        return float(longitude), float(latitude)
+    else:
+        # Return None for invalid rows
+        return None, None
 
+# Apply the function and split into separate columns
+merged_waze_df[['longitude', 'latitude']] = merged_waze_df['geoWKT'].apply(split_long_lat).apply(pd.Series)
+
+longitude_binned=round(merged_waze_df["longitude"],2)
+latitude_binned=round(merged_waze_df["latitude"],2)
+
+binned_coords=pd.DataFrame({"longitude_binned":longitude_binned,
+"latitude_binned":latitude_binned})
+
+#create a summary table that counts the number of 
+#each combination
+
+grouped_binned_coords=binned_coords.groupby(["longitude_binned","latitude_binned"]).size().reset_index(name="count").sort_values("count",ascending=False)
+#longitude and latitude combo with greatest number of 
+#observations:
+print("longitude and latitude combo with greatest number of observations:" ,grouped_binned_coords.head(1))
 ```
+
+
+```{python}
+#take the original df, assign each observation its bin by 
+#rounding to the nearest hundredth.
+
+merged_waze_df["latitude"]=merged_waze_df["latitude"].round(2)
+merged_waze_df["longitude"]=merged_waze_df["longitude"].round(2)
+
+#groupby type subtype longitude and latitude. this'll give each
+#locations number of traffic incidences by type and subtype
+agg_type_subtype_df=merged_waze_df.groupby(["type","updated_subtype","longitude","latitude"]).size().reset_index(name="count")
+
+agg_type_subtype_df.to_csv("C:\\Users\\Mitch\\Documents\\GitHub\problem-set-6\\top_alerts_map\\top_alerts_map.csv")
+
+agg_type_subtype_df.shape
+```
+
+The level of aggregation is looking at the number of type subtype combo at a longitude and latitude combo.
+
+The dataframe has 6675 rows.
+
 
 2. 
 
 ```{python}
+import altair as alt
+min_latitude=agg_type_subtype_df["latitude"].min()
+max_latitude=agg_type_subtype_df["latitude"].max()
+
+min_longitude=agg_type_subtype_df["longitude"].min()
+max_longitude=agg_type_subtype_df["longitude"].max()
+
+alt.Chart(agg_type_subtype_df).mark_circle().encode(
+    alt.X(
+        "longitude",
+        scale=alt.Scale(domain=[min_longitude, max_longitude])
+    ),
+    alt.Y(
+        "latitude",
+        scale=alt.Scale(domain=[min_latitude, max_latitude])
+    ),
+    size="count"
+).transform_filter(
+    (alt.datum.type == "JAM") & (alt.datum.updated_subtype == "HEAVY_TRAFFIC")
+    ).properties(title="Heavy Traffic Jams in Chicago")
 
 ```
 
 3. 
+Yes you can download it using requests. I'm using https://www.geeksforgeeks.org/downloading-files-web-using-python/ as a source to guide me in doing so.
+
+```{python}
+
+
+```
+
+b.
+
+```{python}
+
+
+```
+
+4. 
 
 ```{python}
 
 ```
 
-4. 
 
 ```{python}
 
@@ -157,43 +393,123 @@ reportRating: Ordinal
 
 a. 
 ```{python}
+import re
+#looked at the documentation and found what I think is most
+#important re method and syntax to incorporate into a function.
+#ChatGPT prompt: I want to split the longitude and latitude #using re.split(/s, txt), with each txt being the geoWKT output, #assigning text before the blank space to longitude, and the #text after to latitude
+# Function to extract longitude and latitude
+def split_long_lat(geoWKT):
+    # Use regex to extract only the numeric coordinates
+    match = re.search(r'\(([-\d.]+)\s+([-\d.]+)\)', geoWKT)
+    if match:
+        longitude, latitude = match.groups()
+        return float(longitude), float(latitude)
+    else:
+        # Return None for invalid rows
+        return None, None
 
+# Apply the function and split into separate columns
+merged_waze_df[['longitude', 'latitude']] = merged_waze_df['geoWKT'].apply(split_long_lat).apply(pd.Series)
+
+longitude_binned=round(merged_waze_df["longitude"],2)
+latitude_binned=round(merged_waze_df["latitude"],2)
+
+binned_coords=pd.DataFrame({"longitude_binned":longitude_binned,
+"latitude_binned":latitude_binned})
 ```
 
-b. 
+b.
 ```{python}
+#create a summary table that counts the number of 
+#each combination
 
+grouped_binned_coords=binned_coords.groupby(["longitude_binned","latitude_binned"]).size().reset_index(name="count").sort_values("count",ascending=False)
+#longitude and latitude combo with greatest number of 
+#observations:
+print("longitude and latitude combo with greatest number of observations:" ,grouped_binned_coords.head(1))
 ```
 
-
-c. 
+c.
 ```{python}
+#take the original df, assign each observation its bin by 
+#rounding to the nearest hundredth.
 
+merged_waze_df["latitude"]=merged_waze_df["latitude"].round(2)
+merged_waze_df["longitude"]=merged_waze_df["longitude"].round(2)
+
+#groupby type subtype longitude and latitude. this'll give each
+#locations number of traffic incidences by type and subtype
+agg_type_subtype_df=merged_waze_df.groupby(["type","updated_subtype","longitude","latitude"]).size().reset_index(name="count")
+
+agg_type_subtype_df.to_csv("C:\\Users\\Mitch\\Documents\\GitHub\problem-set-6\\top_alerts_map\\top_alerts_map.csv")
+
+agg_type_subtype_df.shape
 ```
 
-d. 
+The level of aggregation is looking at the number of type subtype combo at a longitude and latitude combo.
+
+The dataframe has 6675 rows.
+
+
+2. 
+
 ```{python}
+import altair as alt
+min_latitude=agg_type_subtype_df["latitude"].min()
+max_latitude=agg_type_subtype_df["latitude"].max()
+
+min_longitude=agg_type_subtype_df["longitude"].min()
+max_longitude=agg_type_subtype_df["longitude"].max()
+
+alt.Chart(agg_type_subtype_df).mark_circle().encode(
+    alt.X(
+        "longitude",
+        scale=alt.Scale(domain=[min_longitude, max_longitude])
+    ),
+    alt.Y(
+        "latitude",
+        scale=alt.Scale(domain=[min_latitude, max_latitude])
+    ),
+    size="count"
+).transform_filter(
+    (alt.datum.type == "JAM") & (alt.datum.updated_subtype == "HEAVY_TRAFFIC")
+    ).transform_window(
+    rank='rank(count)',
+    sort=[alt.SortField('count', order='descending')]
+).transform_filter(
+    alt.datum.rank <= 10
+    ).properties(title="Top 10 Locations for Heavy Traffic Jams in Chicago")
 
 ```
+
 
 3. 
     
 a. 
 
 ```{python}
+import requests
 
+#use the url for the json data in pset
+json_url = "https://data.cityofchicago.org/api/geospatial/bbvz-uum9?method=export&format=GeoJSON"
+
+response = requests.get(json_url)
+#save the file
+file_path = r"C:\\Users\\Mitch\Documents\\GitHub\\problem-set-6\\top_alerts_map\\Boundaries - Neighborhoods.geojson"
+
+with open(file_path, "wb") as file:
+    file.write(response.content)
+
+#file confirmed in the folder.
 ```
     
 
 b. 
 ```{python}
-# MODIFY ACCORDINGLY
-file_path = "./top_alerts_map/chicago-boundaries.geojson"
-#----
-
+#file path is already defined above so there's no reason to 
+#use that part of the template code.
 with open(file_path) as f:
     chicago_geojson = json.load(f)
-
 geo_data = alt.Data(values=chicago_geojson["features"])
 
 ```
@@ -201,14 +517,62 @@ geo_data = alt.Data(values=chicago_geojson["features"])
 4. 
 
 ```{python}
+jams_chart=alt.Chart(agg_type_subtype_df).mark_circle().encode(
+    alt.X(
+        "longitude",
+        scale=alt.Scale(domain=[min_longitude, max_longitude])
+    ),
+    alt.Y(
+        "latitude",
+        scale=alt.Scale(domain=[min_latitude, max_latitude])
+    ),
+    size="count"
+).transform_filter(
+    (alt.datum.type == "JAM") & (alt.datum.updated_subtype == "HEAVY_TRAFFIC")
+    ).transform_window(
+    rank='rank(count)',
+    sort=[alt.SortField('count', order='descending')]
+).transform_filter(
+    alt.datum.rank <= 10
+    ).properties(title="Top 10 Locations for Heavy Traffic Jams in Chicago")
 
+base_map=alt.Chart(geo_data).mark_geoshape().encode(
+    fill=alt.value("grey")
+).project(type="identity", reflectY=True)
+combined_chart=base_map+jams_chart
+combined_chart.show()
 ```
 
 5. 
 
 a. 
 
+There are 16 options in the drop down menu I created.
+
 ```{python}
+from shiny import App, render, ui
+
+menu_choices = (
+    agg_type_subtype_df[["type", "updated_subtype"]]
+    .drop_duplicates()
+    .apply(lambda row: f"{row['type']} - {row['updated_subtype']}", axis=1)
+    .tolist()
+)
+
+app_ui = ui.page_fluid(
+    ui.panel_title("Traffic Incidents in Chicago"),
+    ui.input_select(id="incident",
+    label="choose a type",
+    choices=menu_choices)
+)
+def server(input,output,session):
+    @render.text
+    def txt():
+        return f"{input} selected"
+
+#just want the dropdown menu at this stage; there's nothing
+#for the server to run.
+app=App(app_ui,server)
 
 ```
 
@@ -218,16 +582,23 @@ b.
 ```
 
 c. 
+I couldn't get the projection right, but using my knowledge of the city and the fact that it is more concentrated on the eastern part of the city, I'd say most road closures due to events are along the lakeshore, in wrigleyville
 ```{python}
 
 ```
 
 d. 
+The dashboard could also be used to identify where most major accidents occur in the city.
+
+From the dashboard, we can tell that most major accidents occur on I90/94. 
+
 ```{python}
 
 ```
 
-e. 
+e.
+
+Adding the subsubtype column would provide some granularity to our analysis. We'd have to aggregate on the type, subtype, subsubtype, longitude, and latitude level to achieve this.
 
 # App #2: Top Location by Alert Type and Hour Dashboard (20 points) {-}
 
@@ -235,42 +606,205 @@ e.
 
 a. 
 
+```{python}
+print(waze_df["ts"].nunique)
+```
 
-    
+It would be a bad idea to group by the ts column because every single entry is unique; you wouldn't collapse the data at all. We probably will bin by minute, or hour, because each hour minute second combo has a high likeliehood of being unique.
 b. 
 ```{python}
+import time
+#make the ts column datetime format
 
+merged_waze_df["ts"]=pd.to_datetime(merged_waze_df["ts"])
+
+#extract the hour, assign it to a new column:
+
+merged_waze_df["hour"]=merged_waze_df["ts"].dt.strftime("%H:00")
 ```
+
+```{python}
+#now group by longitude, latitude, hour, type, and subtype
+time_waze_df=merged_waze_df.groupby(
+    ["longitude","latitude","hour","type","updated_subtype"]).size().reset_index(name="count")
+
+print(time_waze_df.shape)
+
+time_waze_df.to_csv("C:\\Users\\Mitch\\Documents\\GitHub\\problem-set-6\\top_alerts_map_byhour\\top_alerts_map_byhour.csv")
+```
+
+62,825 rows in the new df.
 
 c.
 
 ```{python}
+#create a filtered df, where I'm selecting jam for type
+#heavy traffic as subtype, with an additional time element for
+#a single snapshot in time. Create 3 plots, per the ed discussion
+#thread with professor Shi.
+#6am plot:
+base_time_chart=alt.Chart(time_waze_df).mark_circle().encode(
+    alt.X(
+        "longitude",
+        scale=alt.Scale(domain=[min_longitude, max_longitude]),
+    ),
+    alt.Y(
+        "latitude",
+        scale=alt.Scale(domain=[min_latitude, max_latitude]),
+    ),
+    size="count:Q",
+    tooltip=["hour", "latitude", "longitude", "count"],
+).transform_filter(
+    (alt.datum.type == "JAM")
+    & (alt.datum.updated_subtype == "HEAVY_TRAFFIC")
+    & (alt.datum.hour=="06:00")
+).transform_window(
+    rank="rank(count)",
+    sort=[alt.SortField("count", order="descending")],
+    groupby=["hour"],  # Group by hour to rank data separately for each time
+).transform_filter(
+    alt.datum.rank <= 10  # Top 10 for each hour
+).properties(
+    title="Top 10 Locations for Heavy Traffic Jams in Chicago at 6 AM"
+).project(type="identity", reflectY=True)
 
-```
-    
+
+
+base_map=alt.Chart(geo_data).mark_geoshape().encode(
+    fill=alt.value("grey")
+).project(type="identity", reflectY=True)
+combined_chart=base_map+base_time_chart
+combined_chart.show()
+
+base_time_chart=alt.Chart(time_waze_df).mark_circle().encode(
+    alt.X(
+        "longitude",
+        scale=alt.Scale(domain=[min_longitude, max_longitude]),
+    ),
+    alt.Y(
+        "latitude",
+        scale=alt.Scale(domain=[min_latitude, max_latitude]),
+    ),
+    size="count:Q",
+    tooltip=["hour", "latitude", "longitude", "count"],
+).transform_filter(
+    (alt.datum.type == "JAM")
+    & (alt.datum.updated_subtype == "HEAVY_TRAFFIC")
+    & (alt.datum.hour=="12:00")
+).transform_window(
+    rank="rank(count)",
+    sort=[alt.SortField("count", order="descending")],
+    groupby=["hour"], 
+).transform_filter(
+    alt.datum.rank <= 10
+).properties(
+    title="Top 10 Locations for Heavy Traffic Jams in Chicago at noon"
+).project(type="identity", reflectY=True)
+
+
+
+base_map=alt.Chart(geo_data).mark_geoshape().encode(
+    fill=alt.value("grey")
+).project(type="identity", reflectY=True)
+combined_chart=base_map+base_time_chart
+combined_chart.show()
+
+
+#6pm plot:
+base_time_chart=alt.Chart(time_waze_df).mark_circle().encode(
+    alt.X(
+        "longitude",
+        scale=alt.Scale(domain=[min_longitude, max_longitude]),
+    ),
+    alt.Y(
+        "latitude",
+        scale=alt.Scale(domain=[min_latitude, max_latitude]),
+    ),
+    size="count:Q",
+    tooltip=["hour", "latitude", "longitude", "count"],
+).transform_filter(
+    (alt.datum.type == "JAM")
+    & (alt.datum.updated_subtype == "HEAVY_TRAFFIC")
+    & (alt.datum.hour=="18:00")
+).transform_window(
+    rank="rank(count)",
+    sort=[alt.SortField("count", order="descending")],
+    groupby=["hour"],  # Group by hour to rank data separately for each time
+).transform_filter(
+    alt.datum.rank <= 10  # Top 10 for each hour
+).properties(
+    title="Top 10 Locations for Heavy Traffic Jams in Chicago at 6 PM"
+).project(type="identity", reflectY=True)
+
+
+
+base_map=alt.Chart(geo_data).mark_geoshape().encode(
+    fill=alt.value("grey")
+).project(type="identity", reflectY=True)
+combined_chart=base_map+base_time_chart
+combined_chart.show()
+
+
+```    
 
 2.
 
-a. 
-
-
+a.
 
 b. 
+I'm assuming you want 3 screenshots;one of each plot created above:
+
+
 
 
 c. 
+We'll need to change the type-subtype combo to one that aligns with road construction
+
+Based upon the provided screenshots it appears that construction more often occurs in the evening rather than morning. I chose 8am because that's a popular morning commute time, and 9pm because it seemed like that was the time when most construction events was going on from exploring the dashboard. I would caution however that these dispositions indicate road closures due to construction, and may not reflect all construction, because lots of construction occurs even without a road closure on major throughways such as I90/94, 290, and DLSD.
 
 
 # App #3: Top Location by Alert Type and Hour Dashboard (20 points){-}
 
 1. 
 
+a.  If I'm understanding the prompt correctly, I think this would be a bad idea because once we collapse the data down to an aggregation including time range it would restrict the users ability to adjust the range. So we need something that dynamically calculates the number of incidents at each location.
 
-a. 
 
 b. 
 
 ```{python}
+#create plot with top 10 incidents by range of hour from 6-9am
+
+range_chart=alt.Chart(time_waze_df).mark_circle().encode(
+    alt.X(
+        "longitude",
+        scale=alt.Scale(domain=[min_longitude, max_longitude])
+    ),
+    alt.Y(
+        "latitude",
+        scale=alt.Scale(domain=[min_latitude, max_latitude])
+    ),
+    size="count",
+    tooltip=["hour", "latitude", "longitude", "count"]
+).transform_filter(
+    (alt.datum.type == "JAM") & 
+    (alt.datum.updated_subtype == "HEAVY_TRAFFIC") & 
+    ((alt.datum.hour == "06:00") | 
+     (alt.datum.hour == "07:00") | 
+     (alt.datum.hour == "08:00") | 
+     (alt.datum.hour == "09:00"))  # Filter for the specific hours
+).transform_window(
+    rank='rank(count)',  # Rank by count across all the hours
+    sort=[alt.SortField('count', order='descending')]  # Sort by count in descending order
+).transform_filter(
+    alt.datum.rank <= 10  # Only show the top 10 locations based on count
+).properties(title="Top 10 Locations for Heavy Traffic Jams in Chicago, 6am-9am")
+
+base_map=alt.Chart(geo_data).mark_geoshape().encode(
+    fill=alt.value("grey")
+).project(type="identity", reflectY=True)
+combined_chart=base_map+range_chart
+combined_chart.show()
 
 ```
 
@@ -279,12 +813,14 @@ b.
 a. 
 
 
+
 b. 
     
 3. 
 
 a. 
-    
+
+The possible values for the input_switch are True or False according to the documentation shared.
 
 b. 
 
@@ -293,3 +829,4 @@ c.
 
 
 d.
+I would set the plot to contain all the times of day, and then use altair to create a transformation that categorizes all morning hours as "morning" and all evening hours as "evening". I'd need to filter all other hours that don't fit those two categories. Then in the color layer I'd give morning red, evening blue. Then I'd need to change the fill to be none on the markcircle layer.
