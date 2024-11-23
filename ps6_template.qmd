@@ -1,6 +1,6 @@
 ---
 title: "Problem Set 6 - Waze Shiny Dashboard"
-author: "Peter Ganong, Maggie Shi, and Andre Oviedo"
+author: "Mitch Bobbin"
 date: today
 format: 
   pdf:
@@ -25,8 +25,8 @@ We use (`*`) to indicate a problem that we think might be time consuming.
 
 1. "This submission is my work alone and complies with the 30538 integrity
 policy." Add your initials to indicate your agreement: MB
-2. "I have uploaded the names of anyone I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  \*\*\_\_\*\* (2 point)
-3. Late coins used this pset: \*\*\_\_\*\* Late coins left after submission: \*\*\_\_\*\*
+2. "I have uploaded the names of anyone I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  MB (2 point)
+3. Late coins used this pset: 0 Late coins left after submission: 0
 
 4. Before starting the problem set, make sure to read and agree to the terms of data usage for the Waze data [here](https://canvas.uchicago.edu/courses/59054/quizzes/130617).
 
@@ -145,12 +145,15 @@ waze_df_nas = waze_df_nas.melt(id_vars="variable_name",
                                     var_name="count_type", 
                                     value_name="count")
 
-alt.Chart(waze_df_nas).mark_bar().encode(
+na_chart=alt.Chart(waze_df_nas).mark_bar().encode(
     alt.X("variable_name:N",title="Variable Name"),
     alt.Y("count",title="Number of Observations"),
     color=alt.Color("count_type",title="Type")
 ).properties(title="Number of NAs v. Non NAs by Variable in Waze Data")
+na_chart.save("na_chart.png",format="png")
 ```
+
+![NAs by Variable](na_chart.png)
 
 nThumbsUp, street, subtype all contain NAs. nThumbsUp by far has the greatest number of NAs of all variables.
 
@@ -277,115 +280,6 @@ print("The number of rows with type accident and subtype unclassified is:",condi
 
 438462 rows with a type of accident and an unclassified subtype.
 
-1. 
-```{python}
-import re
-#looked at the documentation and found what I think is most
-#important re method and syntax to incorporate into a function.
-#ChatGPT prompt: I want to split the longitude and latitude #using re.split(/s, txt), with each txt being the geoWKT output, #assigning text before the blank space to longitude, and the #text after to latitude
-# Function to extract longitude and latitude
-def split_long_lat(geoWKT):
-    # Use regex to extract only the numeric coordinates
-    match = re.search(r'\(([-\d.]+)\s+([-\d.]+)\)', geoWKT)
-    if match:
-        longitude, latitude = match.groups()
-        return float(longitude), float(latitude)
-    else:
-        # Return None for invalid rows
-        return None, None
-
-# Apply the function and split into separate columns
-merged_waze_df[['longitude', 'latitude']] = merged_waze_df['geoWKT'].apply(split_long_lat).apply(pd.Series)
-
-longitude_binned=round(merged_waze_df["longitude"],2)
-latitude_binned=round(merged_waze_df["latitude"],2)
-
-binned_coords=pd.DataFrame({"longitude_binned":longitude_binned,
-"latitude_binned":latitude_binned})
-
-#create a summary table that counts the number of 
-#each combination
-
-grouped_binned_coords=binned_coords.groupby(["longitude_binned","latitude_binned"]).size().reset_index(name="count").sort_values("count",ascending=False)
-#longitude and latitude combo with greatest number of 
-#observations:
-print("longitude and latitude combo with greatest number of observations:" ,grouped_binned_coords.head(1))
-```
-
-
-```{python}
-#take the original df, assign each observation its bin by 
-#rounding to the nearest hundredth.
-
-merged_waze_df["latitude"]=merged_waze_df["latitude"].round(2)
-merged_waze_df["longitude"]=merged_waze_df["longitude"].round(2)
-
-#groupby type subtype longitude and latitude. this'll give each
-#locations number of traffic incidences by type and subtype
-agg_type_subtype_df=merged_waze_df.groupby(["type","updated_subtype","longitude","latitude"]).size().reset_index(name="count")
-
-agg_type_subtype_df.to_csv("C:\\Users\\Mitch\\Documents\\GitHub\problem-set-6\\top_alerts_map\\top_alerts_map.csv")
-
-agg_type_subtype_df.shape
-```
-
-The level of aggregation is looking at the number of type subtype combo at a longitude and latitude combo.
-
-The dataframe has 6675 rows.
-
-
-2. 
-
-```{python}
-import altair as alt
-min_latitude=agg_type_subtype_df["latitude"].min()
-max_latitude=agg_type_subtype_df["latitude"].max()
-
-min_longitude=agg_type_subtype_df["longitude"].min()
-max_longitude=agg_type_subtype_df["longitude"].max()
-
-alt.Chart(agg_type_subtype_df).mark_circle().encode(
-    alt.X(
-        "longitude",
-        scale=alt.Scale(domain=[min_longitude, max_longitude])
-    ),
-    alt.Y(
-        "latitude",
-        scale=alt.Scale(domain=[min_latitude, max_latitude])
-    ),
-    size="count"
-).transform_filter(
-    (alt.datum.type == "JAM") & (alt.datum.updated_subtype == "HEAVY_TRAFFIC")
-    ).properties(title="Heavy Traffic Jams in Chicago")
-
-```
-
-3. 
-Yes you can download it using requests. I'm using https://www.geeksforgeeks.org/downloading-files-web-using-python/ as a source to guide me in doing so.
-
-```{python}
-
-
-```
-
-b.
-
-```{python}
-
-
-```
-
-4. 
-
-```{python}
-
-```
-
-
-```{python}
-
-```
-
 
 # App #1: Top Location by Alert Type Dashboard (30 points){-}
 
@@ -461,7 +355,7 @@ max_latitude=agg_type_subtype_df["latitude"].max()
 min_longitude=agg_type_subtype_df["longitude"].min()
 max_longitude=agg_type_subtype_df["longitude"].max()
 
-alt.Chart(agg_type_subtype_df).mark_circle().encode(
+subtype_plot=alt.Chart(agg_type_subtype_df).mark_circle().encode(
     alt.X(
         "longitude",
         scale=alt.Scale(domain=[min_longitude, max_longitude])
@@ -479,8 +373,10 @@ alt.Chart(agg_type_subtype_df).mark_circle().encode(
 ).transform_filter(
     alt.datum.rank <= 10
     ).properties(title="Top 10 Locations for Heavy Traffic Jams in Chicago")
-
+subtype_plot.save("subtype_plot.png",format="png")
 ```
+
+![Plot](subtype_plot.png)
 
 
 3. 
@@ -540,8 +436,10 @@ base_map=alt.Chart(geo_data).mark_geoshape().encode(
     fill=alt.value("grey")
 ).project(type="identity", reflectY=True)
 combined_chart=base_map+jams_chart
-combined_chart.show()
+combined_chart.save("combined_chart.png",format="png")
 ```
+
+![Chart on top of map of chicago](combined_chart.png)
 
 5. 
 
@@ -678,13 +576,13 @@ base_time_chart=alt.Chart(time_waze_df).mark_circle().encode(
 ).project(type="identity", reflectY=True)
 
 
-#noon plot:
 base_map=alt.Chart(geo_data).mark_geoshape().encode(
     fill=alt.value("grey")
 ).project(type="identity", reflectY=True)
-combined_chart=base_map+base_time_chart
-combined_chart.show()
+combined_chart_6am=base_map+base_time_chart
+combined_chart_6am.save("6amchart.png",format="png")
 
+#noon plot:
 base_time_chart=alt.Chart(time_waze_df).mark_circle().encode(
     alt.X(
         "longitude",
@@ -715,8 +613,8 @@ base_time_chart=alt.Chart(time_waze_df).mark_circle().encode(
 base_map=alt.Chart(geo_data).mark_geoshape().encode(
     fill=alt.value("grey")
 ).project(type="identity", reflectY=True)
-combined_chart=base_map+base_time_chart
-combined_chart.show()
+combined_chart_noon=base_map+base_time_chart
+combined_chart_noon.save("noonchart.png",format="png")
 
 
 #6pm plot:
@@ -750,11 +648,15 @@ base_time_chart=alt.Chart(time_waze_df).mark_circle().encode(
 base_map=alt.Chart(geo_data).mark_geoshape().encode(
     fill=alt.value("grey")
 ).project(type="identity", reflectY=True)
-combined_chart=base_map+base_time_chart
-combined_chart.show()
+combined_chart_6pm=base_map+base_time_chart
+combined_chart_6pm.save("6pmchart.png",format="png")
 
 
 ```    
+
+![6am](6amchart.png)
+![noon](noonchart.png)
+![noon](6pmchart.png)
 
 2.
 
@@ -821,11 +723,12 @@ range_chart=alt.Chart(time_waze_df).mark_circle().encode(
 base_map=alt.Chart(geo_data).mark_geoshape().encode(
     fill=alt.value("grey")
 ).project(type="identity", reflectY=True)
-combined_chart=base_map+range_chart
-combined_chart.show()
+combined_chart_range=base_map+range_chart
+combined_chart_range.save("range.png",format="png")
 
 ```
 
+![Chart on top of map of chicago](range.png)
 2. 
 
 a. 
