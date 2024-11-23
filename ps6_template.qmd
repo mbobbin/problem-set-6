@@ -24,7 +24,7 @@ We use (`*`) to indicate a problem that we think might be time consuming.
 # Steps to submit (10 points on PS6) {-}
 
 1. "This submission is my work alone and complies with the 30538 integrity
-policy." Add your initials to indicate your agreement: \*\*\MB\*\*
+policy." Add your initials to indicate your agreement: MB
 2. "I have uploaded the names of anyone I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  \*\*\_\_\*\* (2 point)
 3. Late coins used this pset: \*\*\_\_\*\* Late coins left after submission: \*\*\_\_\*\*
 
@@ -576,10 +576,14 @@ app=App(app_ui,server)
 
 ```
 
+![Drop Down Menu UI](C:/Users/Mitch/Pictures/Screenshots/ps6_drop_down_menu.png)
+
 b. 
 ```{python}
 
 ```
+
+![Full Dropdown with plot](C:/Users/Mitch/Pictures/Screenshots/ps6_type_subtype_full.png)
 
 c. 
 I couldn't get the projection right, but using my knowledge of the city and the fact that it is more concentrated on the eastern part of the city, I'd say most road closures due to events are along the lakeshore, in wrigleyville
@@ -587,10 +591,15 @@ I couldn't get the projection right, but using my knowledge of the city and the 
 
 ```
 
+![Road Closures Map](C:/Users/Mitch/Pictures/Screenshots/ps6_drop_down_menu_road_closed.png)
+
+
 d. 
 The dashboard could also be used to identify where most major accidents occur in the city.
 
 From the dashboard, we can tell that most major accidents occur on I90/94. 
+
+![Major Accidents](C:/Users/Mitch/Pictures/Screenshots/ps6_drop_down_menu_accidents_major.png)
 
 ```{python}
 
@@ -661,15 +670,15 @@ base_time_chart=alt.Chart(time_waze_df).mark_circle().encode(
 ).transform_window(
     rank="rank(count)",
     sort=[alt.SortField("count", order="descending")],
-    groupby=["hour"],  # Group by hour to rank data separately for each time
+    groupby=["hour"], 
 ).transform_filter(
-    alt.datum.rank <= 10  # Top 10 for each hour
+    alt.datum.rank <= 10 
 ).properties(
     title="Top 10 Locations for Heavy Traffic Jams in Chicago at 6 AM"
 ).project(type="identity", reflectY=True)
 
 
-
+#noon plot:
 base_map=alt.Chart(geo_data).mark_geoshape().encode(
     fill=alt.value("grey")
 ).project(type="identity", reflectY=True)
@@ -729,9 +738,9 @@ base_time_chart=alt.Chart(time_waze_df).mark_circle().encode(
 ).transform_window(
     rank="rank(count)",
     sort=[alt.SortField("count", order="descending")],
-    groupby=["hour"],  # Group by hour to rank data separately for each time
+    groupby=["hour"],
 ).transform_filter(
-    alt.datum.rank <= 10  # Top 10 for each hour
+    alt.datum.rank <= 10 
 ).properties(
     title="Top 10 Locations for Heavy Traffic Jams in Chicago at 6 PM"
 ).project(type="identity", reflectY=True)
@@ -750,14 +759,23 @@ combined_chart.show()
 2.
 
 a.
+![UI for the slider and dropdown](C:/Users/Mitch/Pictures/Screenshots/ps6_drop_down_slider_ui.png)
+
 
 b. 
 I'm assuming you want 3 screenshots;one of each plot created above:
 
-
+![6am](C:/Users/Mitch/Pictures/Screenshots/ps6_time_6am.png)  
+![noon](C:/Users/Mitch/Pictures/Screenshots/ps6_time_noon.png)  
+![6pm](C:/Users/Mitch/Pictures/Screenshots/ps6_time_6PM.png)  
 
 
 c. 
+
+![8am Closures due to Construction](C:/Users/Mitch/Pictures/Screenshots/ps6_time_8am.png)  
+![9pm Closures due to Construction](C:/Users/Mitch/Pictures/Screenshots/ps6_time_9PM.png)  
+
+
 We'll need to change the type-subtype combo to one that aligns with road construction
 
 Based upon the provided screenshots it appears that construction more often occurs in the evening rather than morning. I chose 8am because that's a popular morning commute time, and 9pm because it seemed like that was the time when most construction events was going on from exploring the dashboard. I would caution however that these dispositions indicate road closures due to construction, and may not reflect all construction, because lots of construction occurs even without a road closure on major throughways such as I90/94, 290, and DLSD.
@@ -811,22 +829,30 @@ combined_chart.show()
 2. 
 
 a. 
-
-
+![Initial slider with plot](C:/Users/Mitch/Pictures/Screenshots/ps6_sliderrange_1.png)
 
 b. 
-    
+![6-9am heavy traffic jams](C:/Users/Mitch/Pictures/Screenshots/ps6_sliderrange_2.png)
+
 3. 
 
-a. 
+a.
+![nonfunction toggle button](C:/Users/Mitch/Pictures/Screenshots/ps6_toggleswitch_nonfunctional.png)
+
+
 
 The possible values for the input_switch are True or False according to the documentation shared.
 
 b. 
 
+![Untoggle ui](C:/Users/Mitch/Pictures/Screenshots/ps6_app3_untoggle_single_time.png)
+![Toggle w/ Range](C:/Users/Mitch/Pictures/Screenshots/ps6_app3_toggle_range.png)
+
+
 
 c. 
-
+![Untoggled Plot](C:/Users/Mitch/Pictures/Screenshots/ps6_app3_untoggle_plot.png)
+![Toggled Plot](C:/Users/Mitch/Pictures/Screenshots/ps6_app3_toggle_plot.png)
 
 d.
 I would set the plot to contain all the times of day, and then use altair to create a transformation that categorizes all morning hours as "morning" and all evening hours as "evening". I'd need to filter all other hours that don't fit those two categories. Then in the color layer I'd give morning red, evening blue. Then I'd need to change the fill to be none on the markcircle layer.
